@@ -1,5 +1,7 @@
 use pyo3::prelude::*;
 mod mods;
+mod vct;
+pub mod test;
 /// Formats the sum of two numbers as string.
 #[pyfunction]
 fn read_rust(path:&str) -> PyResult<String> {
