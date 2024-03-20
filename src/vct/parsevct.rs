@@ -1,6 +1,7 @@
-use std::collections::HashMap;
-use crate::mods::regsearch::re_element_split;
 use crate::mods::read_gbk::read_gbk;
+use crate::mods::regsearch::re_element_split;
+use std::collections::HashMap;
+use log::{info, trace, warn};
 struct Head {
     /**
     * 获取头信息:
@@ -47,11 +48,11 @@ struct Head {
 
 struct Attribute {}
 struct FeatureCode {
-    feature_codet_list: Vec<HashMap<String, String>>,
+    feature_list: Vec<HashMap<String, String>>,
     feature_names: Vec<String>,
 }
 
-enum FiedlType {
+enum FieldType {
     CHAR,
     VARCHAR,
     INT,
@@ -61,13 +62,14 @@ enum FiedlType {
 
 struct Field {
     name: String,
-    fiedl_type: FiedlType,
+    Field_type: FieldType,
     precision: u32,
     length: u32,
 }
 struct TableStructure {
     field: Vec<Field>,
     field_names: Vec<String>,
+    field_vec: Vec<Vec<String>>,
 }
 
 struct Point {
@@ -79,7 +81,7 @@ struct Point {
 struct Line {
     geo_type: String,
     line_len: f64,
-    xy: Vec<Point>,
+    xy: Vec<[f64; 2]>,
 }
 struct Polygon {
     geo_type: String,
@@ -105,13 +107,107 @@ pub struct Vct {
     style: Style,
 }
 
+impl TableStructure {
+    fn new(data: &String) {
+        let tablestructure_vec = row_vec(&data, ",");
+        let mut n = 0;
+
+        loop {
+            let stop = tablestructure_vec[n][1]
+                .to_string()
+                .parse::<usize>()
+                .unwrap();
+            for i in n+1..stop + n {
+
+            }
+            n += stop+1;
+            if tablestructure_vec[n].len() == 2 {}
+        }
+    }
+}
+
+fn row_vec<'a>(data: &'a String, separator: &'a str) -> Vec<Vec<&'a str>> {
+    let mut container = Vec::new();
+    let res = data.split("\n").collect::<Vec<&str>>();
+    for v in &res[1..res.len() - 1] {
+        let split_str = v.split(separator).collect::<Vec<_>>();
+        container.push(split_str);
+    }
+    container
+}
+
 impl Vct {
     fn new(path: &str) {
-        let res = read_gbk(path).expect("读取文件失败");
+        let res: String = read_gbk(path).expect("读取文件失败");
         let head = re_element_split(&res, "Head");
-        println!("head:{:?}", head);
-    }
+        let featurecode_str = re_element_split(&res, "FeatureCode");
+        let tablestructure_str = re_element_split(&res, "TableStructure");
+        let line_str = re_element_split(&res, "Line");
+        let polygon_str = re_element_split(&res, "Polygon");
 
+        let mut headmap = HashMap::new();
+        for v in row_vec(&head, ":") {
+            headmap.insert(v[0].to_string(), v[1].to_string());
+        }
+
+        let featurecode_vec = row_vec(&featurecode_str, ",");
+        let tablestructure_vec = row_vec(&tablestructure_str, ",");
+        let line_vec = row_vec(&line_str, ",");
+        let polygon_vec = row_vec(&polygon_str, ",");
+        println!("{:?}", tablestructure_vec);
+        // Vct {
+        //     filePath: path.to_string(),
+        //     comment: String::new(),
+        //     head: Head {
+        //         data_mark: String::new(),
+        //         version: String::new(),
+        //         coordinate_system_type: String::new(),
+        //         dim: String::new(),
+        //         x_axis_direction: String::new(),
+        //         y_axis_direction: String::new(),
+        //         xy_unit: String::new(),
+        //         spheroid: String::new(),
+        //         prime_meridian: String::new(),
+        //         projection: String::new(),
+        //         parameters: String::new(),
+        //         vertical_datum: String::new(),
+        //         temporal_reference_system: String::new(),
+        //         extent_min: String::new(),
+        //         extent_max: String::new(),
+        //         map_mcale: String::new(),
+        //         offset: String::new(),
+        //         date: String::new(),
+        //         deparator: String::new(),
+        //     },
+        //     feature_code: FeatureCode {
+        //         feature_list: vec![HashMap::new()],
+        //         feature_names: Vec::new(),
+        //     },
+        //     table_structure: TableStructure {
+        //         field: vec![Field {
+        //             name: "要素代码".to_string(),
+        //             Field_type: FieldType::CHAR,
+        //             precision: 0,
+        //             length: 255,
+        //         }],
+        //         field_names: vec!["要素代码".to_string()],
+        //     },
+        //     point: Point {
+        //         geo_type: "point".to_string(),
+        //         x: 0.0,
+        //         y: 0.0,
+        //     },
+        //     line: Line {
+        //         geo_type: "line".to_string(),
+        //         line_len: 0.0,
+        //         xy: Vec::new(),
+        //     },
+        //     annotation: Annotation {},
+        //     topology: Topology {},
+        //     attribute: Attribute {},
+        //     style: Style {},
+        // }
+    }
 }
 
 #[test]
