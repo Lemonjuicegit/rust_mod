@@ -3,7 +3,7 @@ use regex::Regex;
 #[allow(dead_code)]
 pub fn re_element_split(text: & str, node: & str) -> String {
     // 提取vct数据的属性内容
-    let re = Regex::new(&("(".to_owned() + node + r"Begin)([\s\S]*)(" + node + "End)")).expect("");
+    let re = Regex::new(&("(".to_owned() + node + r"Begin)([\s\S]*)(" + node + "End)")).expect("匹配错误");
     if let Some(caps) = re.captures(text) {
         if caps.len() < 4 {
             return String::new();
