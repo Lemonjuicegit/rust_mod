@@ -1,7 +1,9 @@
 use crate::mods::read_gbk::read_gbk;
 use crate::mods::regsearch::re_element_split;
-use log::{info, trace, warn};
-use std::{collections::HashMap, hash::Hash};
+use serde::{Deserialize, Serialize};
+use serde_json::{Result, Value};
+use std::{collections::{HashSet, HashMap}, hash::Hash};
+#[derive(Serialize, Deserialize)]
 struct Head {
     /**
     * 获取头信息:
@@ -45,15 +47,28 @@ struct Head {
     date: String,
     deparator: String,
 }
+#[derive(Serialize, Deserialize)]
+struct Attribute {
+    tabel_name:String,
+    data:Vec<Vec<String>>,
+}
 
-struct Attribute {}
-#[derive(Debug)]
+impl Attribute{
+    fn new(Attdata:&String) -> Self {
+        let Attribute_data = Attdata.split("\n").collect::<Vec<&str>>();
+        
+        Self {
+
+        }
+    }
+}
+#[derive(Debug, Serialize, Deserialize)]
 struct FeatureCode {
     feature_list: Vec<HashMap<String, String>>,
     feature_names: Vec<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 enum FieldType {
     CHAR,
     VARCHAR,
@@ -62,24 +77,25 @@ enum FieldType {
     DATE,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 struct Field {
     name: String,
     Field_type: FieldType,
     precision: Option<u32>,
     length: Option<u32>,
 }
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 struct TableStructure {
     field: HashMap<String, Vec<Field>>,
     table_names: Vec<String>,
 }
+#[derive(Serialize, Deserialize)]
 struct Point {
     geo_type: String,
     x: f64,
     y: f64,
 }
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct Line {
     geo_type: String,
     line_len: f64,
@@ -92,11 +108,12 @@ struct Line {
     point_count: u32, // 点数
     xy: Vec<Vec<f64>>,
 }
-#[derive(Debug)]
-struct Polygon<'a> {
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Polygon {
     geo_type: String,
     area: f64,
-    centroid: Vec<&'a Line>,
+    centroid: Vec<Line>,
     bsm: String,
     ysdm: String,
     txbxbm: String,
@@ -105,13 +122,18 @@ struct Polygon<'a> {
     y: f64,
     jjzbmgclx: String,
     count: u32,
-    dxbsm: String,
+    dxbsm: Vec<String>,
     // bounds: [f64; 4],
 }
+#[derive(Serialize, Deserialize)]
 struct Annotation {}
+#[derive(Serialize, Deserialize)]
 struct Topology {}
+#[derive(Serialize, Deserialize)]
 struct Style {}
-pub struct Vct<'a> {
+
+#[derive(Serialize, Deserialize)]
+pub struct Vct {
     filePath: String,
     comment: String,
     head: Head,
@@ -119,7 +141,7 @@ pub struct Vct<'a> {
     table_structure: TableStructure,
     point: Point,
     line: Vec<Line>,
-    polygon: Vec<Polygon<'a>>,
+    polygon: Vec<Polygon>,
     annotation: Annotation,
     topology: Topology,
     attribute: Attribute,
@@ -223,25 +245,6 @@ impl Line {
     }
 }
 
-impl <'a>Polygon<'a> {
-    fn new(data: &[&'a str],line:Vec<&'a Line>) ->  Self {
-        let xy_split = data[4].split(",").collect::<Vec<_>>();
-        Self {
-            geo_type: "polygon".to_string(),
-            area: 0.0,
-            centroid: line,
-            bsm: data[0].to_string(),
-            ysdm: data[1].to_string(),
-            txbxbm: data[2].to_string(),
-            tzlx: data[3].to_string(),
-            x: xy_split[0].parse::<f64>().unwrap(),
-            y: xy_split[1].parse::<f64>().unwrap(),
-            jjzbmgclx: data[5].to_string(),
-            count: data[5].parse::<u32>().unwrap(),
-            dxbsm: data[7].to_string(),
-        }
-    }
-}
 fn row_vec<'a>(data: &'a String, separator: &'a str) -> Vec<Vec<&'a str>> {
     let mut container = Vec::new();
     let res = data.split("\n").filter(|v| *v != "").collect::<Vec<&str>>();
@@ -252,23 +255,21 @@ fn row_vec<'a>(data: &'a String, separator: &'a str) -> Vec<Vec<&'a str>> {
     container
 }
 
-impl Vct<'_> {
-    fn new(path: &str) -> Self {
+impl Vct {
+    pub fn new(path: &str) -> Self {
         let res: String = read_gbk(path).expect("读取文件失败");
         let head = re_element_split(&res, "Head");
         let featurecode_str = re_element_split(&res, "FeatureCode");
         let tablestructure_str = re_element_split(&res, "TableStructure");
         let line_str = re_element_split(&res, "Line");
         let polygon_str = re_element_split(&res, "Polygon");
-
         let mut headmap = HashMap::new();
         for v in row_vec(&head, ":") {
             headmap.insert(v[0].to_string(), v[1].to_string());
         }
         let featurecode_vec = row_vec(&featurecode_str, ",");
         let tablestructure = TableStructure::new(&tablestructure_str);
-        let line_vec = row_vec(&line_str, ",");
-        let polygon_vec = row_vec(&polygon_str, ",");
+
         let mut vct = Self {
             filePath: path.to_string(),
             comment: String::new(),
@@ -311,6 +312,7 @@ impl Vct<'_> {
             style: Style {},
         };
         vct.set_line(&line_str);
+        vct.set_polygon(&polygon_str);
         vct
     }
     fn set_line(&mut self, line_str: &String) {
@@ -320,6 +322,7 @@ impl Vct<'_> {
             .filter(|v| *v != "")
             .collect::<Vec<&str>>();
         let mut n = 0;
+
         while n < res.len() {
             let stop = res[n + 6].parse::<usize>().unwrap();
             lines.push(Line::new(&res[n..n + stop + 6]));
@@ -327,23 +330,61 @@ impl Vct<'_> {
         }
         self.line = lines;
     }
-    fn set_polygon<'a,'b>(&'b mut self, polygon_str: &'a String) {
-        let polygon_vec = polygon_str.split("\n").filter(|v|*v != "").collect::<Vec<&str>>();
-        let mut n = 0;
-        
-        while n < polygon_vec.len() {
-            let line_bsm = polygon_vec[7];
-            let line = self.line.iter().filter(|v|v.bsm == line_bsm ).collect::<Vec<&Line>>();
-            self.polygon.push(Polygon::new(&polygon_vec[n..n + 7],line));
-            n +=  8;
-        } 
+    fn set_polygon(&mut self, polygon_str: &String) {
+        let polygon_vec = polygon_str
+            .split("\n")
+            .filter(|v| *v != "")
+            .collect::<Vec<&str>>();
 
+        let mut n = 0;
+        while n < polygon_vec.len() {
+            let polygon_vec_slice = Vec::from(&polygon_vec[n..n + 7]);
+            n += 7;
+            let line_bsm = polygon_vec[n];
+            let mut jx_bsm = polygon_vec[n]
+                .split(",0,")
+                .collect::<Vec<&str>>();
+            while polygon_vec[n + 1] != "0" {
+                n += 1;
+                polygon_vec[n]
+                    .split(",0,")
+                    .for_each(|v| jx_bsm.push(v));
+            };
+            n += 2;
+            let xy_split = polygon_vec_slice[4].split(",").collect::<Vec<_>>();
+            self.polygon.push(Polygon {
+                geo_type: "polygon".to_string(),
+                area: 0.0,
+                centroid: self
+                .line
+                .iter()
+                // .filter(|v|&v.bsm == line_bsm)
+                .filter(|v| jx_bsm.contains(&v.bsm.as_str()))
+                .cloned()
+                .collect::<Vec<Line>>(),
+                bsm: polygon_vec_slice[0].to_string(),
+                ysdm: polygon_vec_slice[1].to_string(),
+                txbxbm: polygon_vec_slice[2].to_string(),
+                tzlx: polygon_vec_slice[3].to_string(),
+                x: xy_split[0].parse::<f64>().unwrap(),
+                y: xy_split[1].parse::<f64>().unwrap(),
+                jjzbmgclx: polygon_vec_slice[5].to_string(),
+                count: polygon_vec_slice[6].parse::<u32>().unwrap(),
+                dxbsm: jx_bsm.iter().map(|v| String::from(*v)).collect(),
+            });
+        }
+    }
+    
+    pub fn json_str(&self) -> String {
+        let jsondata = serde_json::to_string(self).unwrap();
+        jsondata
     }
 }
 
 #[test]
 fn test_vct() {
-    let path = "E:\\工作文档\\(500104)2023年度国土变更调查数据库更新成果\\更新数据包\\标准格式数据\\2001H2023500104GX.vct";
-    let vct = Vct::new(path);
-    println!("{:?}", &vct.polygon[0..2])
+    let path = "E:\\工作文档\\(500104)2023年度国土变更调查数据库更新成果\\更新数据包\\标准格式数据\\2001H2023500104GXGC - 副本.vct";
+    let mut vct = Vct::new(path);
+    let aa = &vct.polygon[100];
+    println!("{:?}", aa);
 }

@@ -1,4 +1,5 @@
 use regex::Regex;
+use crate::mods::read_gbk::read_gbk;
 
 #[allow(dead_code)]
 pub fn re_element_split(text: & str, node: & str) -> String {
@@ -19,9 +20,10 @@ pub fn re_element_split(text: & str, node: & str) -> String {
 
 #[test]
 fn test_reelementsplit() {
-    let text = "123Beginsdadsa123End";
-    let node = "123";
-    let result = re_element_split(text, node);
+    let path = "E:\\工作文档\\(500104)2023年度国土变更调查数据库更新成果\\更新数据包\\标准格式数据\\2001H2023500104GX.vct";
+    let res: String = read_gbk(path).expect("读取文件失败");
+    let node = "Line";
+    let result = re_element_split(&res, node);
     // assert_eq!(result,None);
     println!("{:?}", result)
 }

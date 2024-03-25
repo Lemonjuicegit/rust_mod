@@ -1,8 +1,12 @@
 from target.release import rust_mod
 from time import time
 import geopandas as gpd
-pathaa = "E:\\工作文档\\(500104)2023年度国土变更调查数据库更新成果\\更新数据包\\标准格式数据\\2001H2023500104GX.vct";
+import json
+pathaa = "E:\\工作文档\\(500104)2023年度国土变更调查数据库更新成果\\更新数据包\\标准格式数据\\2001H2023500104GXGC.vct";
+aa = json.loads(rust_mod.fnvct(pathaa))
 
+print(aa)
+ 
 
 
 if __name__ == '__main__':
