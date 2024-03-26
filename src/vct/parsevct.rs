@@ -1,8 +1,7 @@
 use crate::mods::read_gbk::read_gbk;
-use crate::mods::regsearch::re_element_split;
+use crate::mods::regsearch::{re, re_element_split};
 use serde::{Deserialize, Serialize};
-use serde_json::{Result, Value};
-use std::{collections::{HashSet, HashMap}, hash::Hash};
+use std::{collections::HashMap, hash::Hash};
 #[derive(Serialize, Deserialize)]
 struct Head {
     /**
@@ -49,16 +48,16 @@ struct Head {
 }
 #[derive(Serialize, Deserialize)]
 struct Attribute {
-    tabel_name:String,
-    data:Vec<Vec<String>>,
+    tabel_name: String,
+    data: Vec<Vec<String>>,
 }
 
-impl Attribute{
-    fn new(Attdata:&String) -> Self {
+impl Attribute {
+    fn new(Attdata: &String) -> Self {
         let Attribute_data = Attdata.split("\n").collect::<Vec<&str>>();
-        
         Self {
-
+            tabel_name: String::new(),
+            data: Vec::new(),
         }
     }
 }
@@ -247,7 +246,7 @@ impl Line {
 
 fn row_vec<'a>(data: &'a String, separator: &'a str) -> Vec<Vec<&'a str>> {
     let mut container = Vec::new();
-    let res = data.split("\n").filter(|v| *v != "").collect::<Vec<&str>>();
+    let res = data.split("\n").filter(|&v| v != "").collect::<Vec<&str>>();
     for v in &res[0..res.len() - 1] {
         let split_str = v.split(separator).collect::<Vec<_>>();
         container.push(split_str);
@@ -308,7 +307,7 @@ impl Vct {
             polygon: Vec::new(),
             annotation: Annotation {},
             topology: Topology {},
-            attribute: Attribute {},
+            attribute: Attribute::new(&String::new()),
             style: Style {},
         };
         vct.set_line(&line_str);
@@ -341,27 +340,23 @@ impl Vct {
             let polygon_vec_slice = Vec::from(&polygon_vec[n..n + 7]);
             n += 7;
             let line_bsm = polygon_vec[n];
-            let mut jx_bsm = polygon_vec[n]
-                .split(",0,")
-                .collect::<Vec<&str>>();
+            let mut jx_bsm = polygon_vec[n].split(",0,").collect::<Vec<&str>>();
             while polygon_vec[n + 1] != "0" {
                 n += 1;
-                polygon_vec[n]
-                    .split(",0,")
-                    .for_each(|v| jx_bsm.push(v));
-            };
+                polygon_vec[n].split(",0,").for_each(|v| jx_bsm.push(v));
+            }
             n += 2;
             let xy_split = polygon_vec_slice[4].split(",").collect::<Vec<_>>();
             self.polygon.push(Polygon {
                 geo_type: "polygon".to_string(),
                 area: 0.0,
                 centroid: self
-                .line
-                .iter()
-                // .filter(|v|&v.bsm == line_bsm)
-                .filter(|v| jx_bsm.contains(&v.bsm.as_str()))
-                .cloned()
-                .collect::<Vec<Line>>(),
+                    .line
+                    .iter()
+                    // .filter(|v|&v.bsm == line_bsm)
+                    .filter(|v| jx_bsm.contains(&v.bsm.as_str()))
+                    .cloned()
+                    .collect::<Vec<Line>>(),
                 bsm: polygon_vec_slice[0].to_string(),
                 ysdm: polygon_vec_slice[1].to_string(),
                 txbxbm: polygon_vec_slice[2].to_string(),
@@ -374,7 +369,7 @@ impl Vct {
             });
         }
     }
-    
+
     pub fn json_str(&self) -> String {
         let jsondata = serde_json::to_string(self).unwrap();
         jsondata
