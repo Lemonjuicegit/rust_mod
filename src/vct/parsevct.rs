@@ -1,5 +1,6 @@
 use crate::mods::read_gbk::read_gbk;
 use crate::mods::regsearch::{re, re_element_split};
+use regex::bytes::Split;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, hash::Hash};
 #[derive(Serialize, Deserialize)]
@@ -46,7 +47,7 @@ struct Head {
     date: String,
     deparator: String,
 }
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize,Debug)]
 struct Attribute {
     tabel_name: String,
     data: Vec<Vec<String>>,
@@ -54,9 +55,9 @@ struct Attribute {
 
 impl Attribute {
     fn new(Attdata: &String) -> Self {
-        let Attribute_data = Attdata.split("\n").collect::<Vec<&str>>();
+        let Attribute_data = Attdata.split("\n").map(|v|v.to_string()).collect::<Vec<String>>();
         Self {
-            tabel_name: String::new(),
+            tabel_name: Attribute_data[0].clone(),
             data: Vec::new(),
         }
     }
@@ -268,7 +269,23 @@ impl Vct {
         }
         let featurecode_vec = row_vec(&featurecode_str, ",");
         let tablestructure = TableStructure::new(&tablestructure_str);
-
+        let attribute_str = re_element_split(&res, "Attribute");
+        // let attribute_hashmap = HashMap::new();
+        let attribute_vec = tablestructure
+            .table_names
+            .iter()
+            .map(|v| {
+                let res = re(
+                    &attribute_str,
+                    &("(".to_owned() + v + r")([\s\S]*)(TableEnd)"),
+                );
+                res
+            }).map(|v|{
+                let res = Attribute::new(&v[0]);
+                res
+            })
+            .collect::<Vec<Attribute>>();
+        println!("{:?}", attribute_vec[0]);
         let mut vct = Self {
             filePath: path.to_string(),
             comment: String::new(),
@@ -380,6 +397,4 @@ impl Vct {
 fn test_vct() {
     let path = "E:\\工作文档\\(500104)2023年度国土变更调查数据库更新成果\\更新数据包\\标准格式数据\\2001H2023500104GXGC - 副本.vct";
     let mut vct = Vct::new(path);
-    let aa = &vct.polygon[100];
-    println!("{:?}", aa);
 }
