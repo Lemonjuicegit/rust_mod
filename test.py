@@ -8,7 +8,6 @@ aa = json.loads(rust_mod.fnvct(pathaa))
 print(aa)
  
 
-
 if __name__ == '__main__':
     # t = time()
     # with open(pathaa,'r') as f:

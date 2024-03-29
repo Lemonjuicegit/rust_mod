@@ -1,8 +1,7 @@
 use crate::mods::read_gbk::read_gbk;
 use crate::mods::regsearch::{re, re_element_split};
-use regex::bytes::Split;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, hash::Hash};
+use std::collections::HashMap;
 #[derive(Serialize, Deserialize)]
 struct Head {
     /**
@@ -47,18 +46,29 @@ struct Head {
     date: String,
     deparator: String,
 }
-#[derive(Serialize, Deserialize,Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct Attribute {
     tabel_name: String,
     data: Vec<Vec<String>>,
 }
 
 impl Attribute {
-    fn new(Attdata: &String) -> Self {
-        let Attribute_data = Attdata.split("\n").map(|v|v.to_string()).collect::<Vec<String>>();
+    fn new(attdata: &String,name: &String) -> Self {
+        let attribute_data = attdata
+            .split("\n")
+            .map(|v| v.to_string())
+            .collect::<Vec<String>>();
+        let attribute_vec = attribute_data
+            .iter()
+            .map(|v| {
+                v.split(",")
+                    .map(|v2| v2.to_string())
+                    .collect::<Vec<String>>()
+            })
+            .collect::<Vec<Vec<String>>>();
         Self {
-            tabel_name: Attribute_data[0].clone(),
-            data: Vec::new(),
+            tabel_name: name.to_owned(),
+            data: attribute_vec,
         }
     }
 }
@@ -80,7 +90,7 @@ enum FieldType {
 #[derive(Debug, Serialize, Deserialize)]
 struct Field {
     name: String,
-    Field_type: FieldType,
+    field_type: FieldType,
     precision: Option<u32>,
     length: Option<u32>,
 }
@@ -134,7 +144,7 @@ struct Style {}
 
 #[derive(Serialize, Deserialize)]
 pub struct Vct {
-    filePath: String,
+    file_path: String,
     comment: String,
     head: Head,
     feature_code: FeatureCode,
@@ -144,7 +154,8 @@ pub struct Vct {
     polygon: Vec<Polygon>,
     annotation: Annotation,
     topology: Topology,
-    attribute: Attribute,
+    attribute: Vec<Attribute>,
+    varchar: Vec<String>,
     style: Style,
 }
 
@@ -171,13 +182,13 @@ impl TableStructure {
                 let field = match tablestructure_vec[i].len() {
                     2 => Field {
                         name: tablestructure_vec[i][0].to_string(),
-                        Field_type: FieldType::VARCHAR,
+                        field_type: FieldType::VARCHAR,
                         precision: None,
                         length: None,
                     },
                     3 => Field {
                         name: tablestructure_vec[i][0].to_string(),
-                        Field_type: match tablestructure_vec[i][1] {
+                        field_type: match tablestructure_vec[i][1] {
                             "Char" => FieldType::CHAR,
                             "Int" => FieldType::INT,
                             "Date" => FieldType::DATE,
@@ -191,7 +202,7 @@ impl TableStructure {
                     },
                     4 => Field {
                         name: tablestructure_vec[i][0].to_string(),
-                        Field_type: FieldType::VARCHAR,
+                        field_type: FieldType::VARCHAR,
                         precision: Some(
                             u32::from_str_radix(tablestructure_vec[i][2], 10)
                                 .expect("字段精度设置错误"),
@@ -203,7 +214,7 @@ impl TableStructure {
                     },
                     _ => Field {
                         name: String::new(),
-                        Field_type: FieldType::CHAR,
+                        field_type: FieldType::CHAR,
                         precision: None,
                         length: None,
                     },
@@ -259,18 +270,17 @@ impl Vct {
     pub fn new(path: &str) -> Self {
         let res: String = read_gbk(path).expect("读取文件失败");
         let head = re_element_split(&res, "Head");
-        let featurecode_str = re_element_split(&res, "FeatureCode");
+        // let featurecode_str = re_element_split(&res, "FeatureCode");
         let tablestructure_str = re_element_split(&res, "TableStructure");
         let line_str = re_element_split(&res, "Line");
         let polygon_str = re_element_split(&res, "Polygon");
+        let varchar_str = re_element_split(&res, "Varchar");
         let mut headmap = HashMap::new();
         for v in row_vec(&head, ":") {
             headmap.insert(v[0].to_string(), v[1].to_string());
         }
-        let featurecode_vec = row_vec(&featurecode_str, ",");
         let tablestructure = TableStructure::new(&tablestructure_str);
         let attribute_str = re_element_split(&res, "Attribute");
-        // let attribute_hashmap = HashMap::new();
         let attribute_vec = tablestructure
             .table_names
             .iter()
@@ -278,16 +288,14 @@ impl Vct {
                 let res = re(
                     &attribute_str,
                     &("(".to_owned() + v + r")([\s\S]*)(TableEnd)"),
-                );
-                res
-            }).map(|v|{
-                let res = Attribute::new(&v[0]);
-                res
+                )[0]
+                .replace(&format!("{}\n",v), "")
+                .replace("TableEnd\n", "");
+                return Attribute::new(&res,v);
             })
             .collect::<Vec<Attribute>>();
-        println!("{:?}", attribute_vec[0]);
         let mut vct = Self {
-            filePath: path.to_string(),
+            file_path: path.to_string(),
             comment: String::new(),
             head: Head {
                 data_mark: String::new(),
@@ -324,7 +332,8 @@ impl Vct {
             polygon: Vec::new(),
             annotation: Annotation {},
             topology: Topology {},
-            attribute: Attribute::new(&String::new()),
+            attribute: attribute_vec,
+            varchar: varchar_str.split(",\n").map(|v|v.to_owned()).collect(),
             style: Style {},
         };
         vct.set_line(&line_str);
@@ -356,7 +365,6 @@ impl Vct {
         while n < polygon_vec.len() {
             let polygon_vec_slice = Vec::from(&polygon_vec[n..n + 7]);
             n += 7;
-            let line_bsm = polygon_vec[n];
             let mut jx_bsm = polygon_vec[n].split(",0,").collect::<Vec<&str>>();
             while polygon_vec[n + 1] != "0" {
                 n += 1;
@@ -396,5 +404,6 @@ impl Vct {
 #[test]
 fn test_vct() {
     let path = "E:\\工作文档\\(500104)2023年度国土变更调查数据库更新成果\\更新数据包\\标准格式数据\\2001H2023500104GXGC - 副本.vct";
-    let mut vct = Vct::new(path);
+    let vct = Vct::new(path);
+    println!("{:?}", vct.attribute)
 }
